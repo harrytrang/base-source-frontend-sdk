@@ -1,0 +1,28 @@
+{
+  "name": "base-source-frontend-sdk",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "dist/index.min.js",
+  "module": "dist/index.min.js",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": "./dist/index.min.js",
+    "./sdk": "./dist/sdk.min.js"
+  },
+  "scripts": {
+    "clean": "rimraf dist/*",
+    "build": "npm run clean && npx esbuild src/index.js --bundle --minify --format=esm --outfile=dist/index.min.js && npx esbuild src/sdk/index.js --bundle --minify --format=esm --outfile=dist/sdk.min.js",
+    "prepare": "npm run build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "esbuild": "^0.27.4",
+    "rimraf": "^6.1.3"
+  }
+}
