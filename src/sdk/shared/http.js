@@ -1,5 +1,6 @@
 import { ensureBase } from "./helpers.js";
 
+// ================== http layer ==================
 export function createHttp(cfg) {
   const fetchImpl = cfg.fetchImpl ?? fetch;
   const storageKey = "access_token";

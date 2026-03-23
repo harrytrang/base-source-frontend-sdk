@@ -8,6 +8,9 @@ import {
 } from "../shared/helpers.js";
 import { createHttp } from "../shared/http.js";
 
+// =============================================================
+// FIX: GET vs POST logic for DynamicModule
+// =============================================================
 function createDynamicModule(basePath, http) {
   return new Proxy(
     {},
@@ -20,8 +23,10 @@ function createDynamicModule(basePath, http) {
           let last = args[args.length - 1];
           if (last?.filter) last.filter = JSON.stringify(last.filter);
           if (last?.sort) last.sort = JSON.stringify(last.sort);
+          // pure GET methods
           const GET_METHODS = ["list", "filter", "search", "count", "paging"];
 
+          // Determine GET vs POST properly
           if (GET_METHODS.includes(method)) {
             return http.request(`${path}/${method}`, {
               method: "GET",
@@ -29,6 +34,7 @@ function createDynamicModule(basePath, http) {
             });
           }
 
+          // default dynamic behavior
           const hasBody =
             last &&
             typeof last === "object" &&
@@ -45,6 +51,7 @@ function createDynamicModule(basePath, http) {
 
           path += "/" + encodeURIComponent(method);
 
+          // multipart cases
           if (isFormDataLike(body)) {
             return http.request(path, {
               method: "POST",
@@ -70,10 +77,13 @@ function createDynamicModule(basePath, http) {
           return http.request(path, { method: "GET" });
         };
       },
-    },
+    }
   );
 }
 
+// =============================================================
+// Entities Module — FIXED GET/POST RULES
+// =============================================================
 function createEntities(http) {
   return new Proxy(
     {},
@@ -107,12 +117,8 @@ function createEntities(http) {
                       query: clean({
                         page: args[0]?.page,
                         pageSize: args[0]?.pageSize,
-                        filter: args[0]?.filter
-                          ? JSON.stringify(args[0].filter)
-                          : undefined,
-                        sort: args[0]?.sort
-                          ? JSON.stringify(args[0].sort)
-                          : undefined,
+                        filter: args[0]?.filter ? JSON.stringify(args[0].filter) : undefined,
+                        sort: args[0]?.sort ? JSON.stringify(args[0].sort) : undefined,
                         fields: arrToCsv(args[0]?.fields),
                       }),
                     });
@@ -120,7 +126,7 @@ function createEntities(http) {
                   case "get":
                     return http.request(
                       `${entity}/${encodeURIComponent(args[0])}/get`,
-                      { method: "GET" },
+                      { method: "GET" }
                     );
 
                   case "create": {
@@ -181,13 +187,16 @@ function createEntities(http) {
                 }
               };
             },
-          },
+          }
         );
       },
-    },
+    }
   );
 }
 
+// =============================================================
+// Integrations Module
+// =============================================================
 function createIntegrations(http) {
   return new Proxy(
     {},
@@ -223,13 +232,16 @@ function createIntegrations(http) {
                 });
               };
             },
-          },
+          }
         );
       },
-    },
+    }
   );
 }
 
+// =============================================================
+// Auth Module
+// =============================================================
 function createAuth(http, cfg) {
   return new Proxy(
     {},
@@ -245,13 +257,8 @@ function createAuth(http, cfg) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(args[0] ?? {}),
               });
-              if (res?.data.data.token)
-                localStorage.setItem("access_token", res.data.data.token);
-              if (res?.data.data.user)
-                localStorage.setItem(
-                  "user",
-                  JSON.stringify(res.data.data.user),
-                );
+              if (res?.data.data.token) localStorage.setItem("access_token", res.data.data.token);
+              if (res?.data.data.user) localStorage.setItem("user", JSON.stringify(res.data.data.user));
               return res;
             }
 
@@ -266,13 +273,8 @@ function createAuth(http, cfg) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
               });
-              if (res?.data?.data?.token)
-                localStorage.setItem("access_token", res.data.data.token);
-              if (res?.data?.data?.user)
-                localStorage.setItem(
-                  "user",
-                  JSON.stringify(res.data.data.user),
-                );
+              if (res?.data?.data?.token) localStorage.setItem("access_token", res.data.data.token);
+              if (res?.data?.data?.user) localStorage.setItem("user", JSON.stringify(res.data.data.user));
               return res;
             }
 
@@ -285,8 +287,7 @@ function createAuth(http, cfg) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(args[0] ?? {}),
               });
-              if (res?.data.refresh_token)
-                http.setToken(res.data.refresh_token, true);
+              if (res?.data.refresh_token) http.setToken(res.data.refresh_token, true);
               return res;
             }
 
@@ -339,11 +340,24 @@ function createAuth(http, cfg) {
           }
         };
       },
-    },
+    }
   );
 }
 
+// =============================================================
+// Functions Module — Edge Function Invocation
+// =============================================================
 function createFunctions(http) {
+  /**
+   * Invoke an edge function by name.
+   * @param {string} functionName - The function slug (e.g. "weather", "stripe-webhook")
+   * @param {object} [options] - Request options
+   * @param {string} [options.method="POST"] - HTTP method (GET, POST, PUT, DELETE)
+   * @param {object} [options.body] - Request body (for POST/PUT)
+   * @param {object} [options.query] - Query parameters (for GET)
+   * @param {object} [options.headers] - Additional headers
+   * @returns {Promise<any>} Response data
+   */
   const invoke = async (functionName, options = {}) => {
     const method = (options.method || "POST").toUpperCase();
     const init = { method };
@@ -367,6 +381,8 @@ function createFunctions(http) {
     return http.request(`functions/${encodeURIComponent(functionName)}`, init);
   };
 
+  // Allow both client.functions.invoke("name", opts)
+  // and client.functions.name(data) shorthand
   return new Proxy(
     { invoke },
     {
@@ -381,10 +397,13 @@ function createFunctions(http) {
           });
         };
       },
-    },
+    }
   );
 }
 
+// =============================================================
+// Root createClient
+// =============================================================
 export function createClient(config) {
   if (!config?.serverUrl) throw new Error("serverUrl is required");
 
@@ -403,6 +422,7 @@ export function createClient(config) {
     getConfig: () => ({ serverUrl: config.serverUrl }),
   };
 
+  // dynamic modules
   return new Proxy(client, {
     get(target, prop) {
       if (prop in target) return target[prop];

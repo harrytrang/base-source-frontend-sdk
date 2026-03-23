@@ -1,3 +1,6 @@
+// =============================================================
+// vibexClient SDK
+// ================== helpers ==================================
 export function ensureBase(url) {
   return url.endsWith("/") ? url : url + "/";
 }
